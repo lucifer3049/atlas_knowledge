@@ -6,7 +6,8 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
     ports:
-      - "5432:5432"
+      # host 5433 → 容器 5432(避開本機原生 PostgreSQL 服務佔用的 5432)
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
