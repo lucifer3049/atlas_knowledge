@@ -41,10 +41,22 @@ docker compose ps    # postgres / redis 均應為 healthy
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .\.venv\Scripts\activate    # macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env                   # 依需要調整連線設定
+```
 
+**啟用 venv**(後續指令才找得到 `ruff`/`mypy`/`pytest`/`pre-commit`):
+
+```powershell
+# Windows PowerShell
+.\.venv\Scripts\Activate.ps1
+#   若被執行原則擋下,先跑一次:Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+# macOS/Linux: source .venv/bin/activate
+```
+
+啟用後即可用短指令;若不想啟用,把 `pre-commit`/`ruff`/… 換成 `.\.venv\Scripts\<工具>.exe` 亦可。
+
+```bash
 # 啟動 API(健康檢查:GET /api/health → {"status":"ok"})
 uvicorn app.main:app --reload
 
@@ -57,3 +69,15 @@ alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 ```
 
 前端的安裝/測試指令將於 T0.4(frontend 腳手架)補充。
+
+## 工具鏈與 CI
+
+- **pre-commit**([.pre-commit-config.yaml](.pre-commit-config.yaml)):提交前跑基本檔案檢查(trailing whitespace / EOF / YAML / TOML / merge conflict)+ backend `ruff --fix`。安裝(於 repo 根目錄執行一次):
+
+  ```bash
+  python -m pip install pre-commit   # 建議裝到全域 Python(GUI/CLI 提交皆可用)
+  pre-commit install
+  ```
+
+  > 注意:本 repo 路徑含中文。**勿用 venv 內的 pre-commit 安裝掛勾**——它會把含中文的絕對路徑寫進 `.git/hooks/pre-commit` 而損毀,導致提交時報 `pre-commit not found`。用路徑全為 ASCII 的全域 Python 安裝即可避免。
+- **GitHub Actions**([.github/workflows/ci.yml](.github/workflows/ci.yml)):每次 push(main)/PR 對 backend 跑 `ruff check` → `mypy` → `pytest`(Python 3.12)。CI 不呼叫任何外部服務。

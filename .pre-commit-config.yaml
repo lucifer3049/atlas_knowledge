@@ -1,0 +1,20 @@
+# 本地提交前的快速守門(格式/lint);完整 type-check 與測試在 CI(見 .github/workflows/ci.yml)。
+# 安裝:pip install -e "backend/.[dev]" 後於 repo 根目錄執行 `pre-commit install`。
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.21
+    hooks:
+      - id: ruff
+        name: ruff (lint backend)
+        args: [--fix]
+        files: ^backend/
