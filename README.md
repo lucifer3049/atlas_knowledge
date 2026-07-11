@@ -68,7 +68,24 @@ pytest
 alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 ```
 
-前端的安裝/測試指令將於 T0.4(frontend 腳手架)補充。
+## 前端(frontend)
+
+技術棧:Vite 5 + Vue 3(`<script setup>`)+ TypeScript strict + Tailwind CSS v4 + ESLint 9(flat config)+ Prettier + Vitest。需 Node 20+。
+
+```bash
+cd frontend
+npm install
+
+npm run dev         # 開發伺服器(預設 http://localhost:5173)
+npm run build       # vue-tsc 型別檢查 + production build
+
+# DoD 檢查
+npm run lint        # ESLint
+npm run typecheck   # vue-tsc --noEmit
+npm run test        # Vitest
+```
+
+> 目前為腳手架階段,僅一個占位頁面與煙霧測試;實際頁面(登入、聊天等)自 P1 起逐步加入。
 
 ## 工具鏈與 CI
 
@@ -80,4 +97,4 @@ alembic upgrade head && alembic downgrade -1 && alembic upgrade head
   ```
 
   > 注意:本 repo 路徑含中文。**勿用 venv 內的 pre-commit 安裝掛勾**——它會把含中文的絕對路徑寫進 `.git/hooks/pre-commit` 而損毀,導致提交時報 `pre-commit not found`。用路徑全為 ASCII 的全域 Python 安裝即可避免。
-- **GitHub Actions**([.github/workflows/ci.yml](.github/workflows/ci.yml)):每次 push(main)/PR 對 backend 跑 `ruff check` → `mypy` → `pytest`(Python 3.12)。CI 不呼叫任何外部服務。
+- **GitHub Actions**([.github/workflows/ci.yml](.github/workflows/ci.yml)):每次 push(main)/PR 跑兩個 job——backend(`ruff check` → `mypy` → `pytest`,Python 3.12)與 frontend(`lint` → `typecheck` → `test`,Node 20)。CI 不呼叫任何外部服務。
