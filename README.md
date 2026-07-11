@@ -19,10 +19,13 @@
 前置:Docker Desktop、Python 3.12+、Node 20+、本地 Ollama(P1 起,聊天用)。
 
 ```bash
-# 1. 啟動基礎設施(PostgreSQL 16 + pgvector 0.8、Redis 7.4)
+# 1. 準備環境變數(首次;compose 由根目錄 .env 注入 DB 憑證)
+cp .env.example .env
+
+# 2. 啟動基礎設施(PostgreSQL 16 + pgvector 0.8、Redis 7.4)
 docker compose up -d
 
-# 2. 確認健康狀態
+# 3. 確認健康狀態
 docker compose ps    # postgres / redis 均應為 healthy
 ```
 
