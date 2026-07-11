@@ -1,0 +1,12 @@
+# 模型別名登錄(schema 權威定義:docs/plan/phase-6-spec.md §7.1;P0 起即用此格式,MASTER_PLAN_v1 §R R2)
+# P1 階段僅單一 alias `local-default`;fallback 鏈與多 provider 等 P6。
+default_alias: local-default
+aliases:
+  local-default:
+    provider: openai_compat
+    model: "llama3.1:8b"
+    base_url: "${LLM_BASE_URL}"      # env 展開;開發 = 本地 Ollama(http://localhost:11434/v1)
+    params: { temperature: 0.3, max_tokens: 2048 }
+    capabilities: { tools: true, vision: false, max_context: 32000 }
+    price: { input_per_1m: 0.0, output_per_1m: 0.0 }   # USD;估算用(phase-6 D8)
+    fallback: []
