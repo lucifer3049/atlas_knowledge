@@ -6,14 +6,15 @@ from sqlalchemy.engine import Connection
 
 from app.core.config import settings
 from app.core.db import create_engine
+from app.infrastructure.db.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# P0 baseline 尚無資料表;P1 起改為 infrastructure 的 Base.metadata。
-target_metadata = None
+# P1 起以 infrastructure 的 Base.metadata 為 autogenerate 依據(權威仍為 §4.1 DDL)。
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
@@ -22,13 +23,16 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, compare_type=True
+    )
     with context.begin_transaction():
         context.run_migrations()
 

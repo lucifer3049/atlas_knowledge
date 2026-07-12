@@ -71,6 +71,11 @@ pytest
 alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 ```
 
+> **測試需要 PostgreSQL**:API / repository 層測試會依 `DATABASE_URL` 自動建立獨立測試庫
+> `<db>_test`(例:`app_test`)、跑 `alembic upgrade` 建 schema,每則測試在交易內執行後 rollback。
+> 因此跑 `pytest` 前需先 `docker compose up -d postgres`。`backend/.env` 另需 `JWT_SECRET`
+> (見 `.env.example`;正式環境務必換成 64 bytes 隨機值,只從環境注入)。
+
 ## 前端(frontend)
 
 技術棧:Vite 5 + Vue 3(`<script setup>`)+ TypeScript strict + Tailwind CSS v4 + ESLint 9(flat config)+ Prettier + Vitest。需 Node 20+。
@@ -100,4 +105,4 @@ npm run test        # Vitest
   ```
 
   > 注意:本 repo 路徑含中文。**勿用 venv 內的 pre-commit 安裝掛勾**——它會把含中文的絕對路徑寫進 `.git/hooks/pre-commit` 而損毀,導致提交時報 `pre-commit not found`。用路徑全為 ASCII 的全域 Python 安裝即可避免。
-- **GitHub Actions**([.github/workflows/ci.yml](.github/workflows/ci.yml)):每次 push(main)/PR 跑兩個 job——backend(`ruff check` → `mypy` → `pytest`,Python 3.12)與 frontend(`lint` → `typecheck` → `test`,Node 20)。CI 不呼叫任何外部服務。
+- **GitHub Actions**([.github/workflows/ci.yml](.github/workflows/ci.yml)):每次 push(main)/PR 跑兩個 job——backend(`ruff check` → `mypy` → `pytest`,Python 3.12,附 `pgvector/pgvector` PostgreSQL service 供 DB 測試)與 frontend(`lint` → `typecheck` → `test`,Node 20)。CI 不呼叫任何外部 LLM / 平台 API。

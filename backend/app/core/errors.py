@@ -31,6 +31,37 @@ class AppError(Exception):
         super().__init__(getattr(self, "message", type(self).__name__))
 
 
+class EmailAlreadyRegistered(AppError):
+    code = "email_already_registered"
+    http_status = 409
+    message = "此 email 已被註冊"
+
+
+class InvalidCredentials(AppError):
+    # 帳號不存在與密碼錯誤一律回應完全相同,NEVER 洩漏帳號是否存在(§5.3-2)。
+    code = "invalid_credentials"
+    http_status = 401
+    message = "帳號或密碼錯誤"
+
+
+class UserInactive(AppError):
+    code = "user_inactive"
+    http_status = 403
+    message = "帳號已停用"
+
+
+class InvalidToken(AppError):
+    code = "invalid_token"
+    http_status = 401
+    message = "憑證無效或已過期"
+
+
+class InvalidRefreshToken(AppError):
+    code = "invalid_refresh_token"
+    http_status = 401
+    message = "登入憑證已失效,請重新登入"
+
+
 def _trace_id(request: Request) -> str:
     # middleware 一定會設定 request_id;fallback 僅防禦性。
     request_id: str | None = getattr(request.state, "request_id", None)

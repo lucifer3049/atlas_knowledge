@@ -10,5 +10,11 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str = "redis://localhost:6379/0"
 
+    # 認證(T1.1;PHASE_1 §5.1)。JWT_SECRET 只從環境讀,缺值 fail-fast,NEVER 硬寫。
+    jwt_secret: str
+    access_token_ttl_min: int = 20
+    refresh_token_ttl_days: int = 14
+    cookie_secure: bool = False  # 正式環境 true(refresh cookie 走 HTTPS)
+
 
 settings = Settings()
