@@ -4,9 +4,10 @@ T1.1 僅落 users / refresh_tokens 兩表;conversations / messages / model_usage
 於後續 ticket(T1.2 / T1.4)加入。Base 為全 Phase 共用宣告,NEVER 另建平行 Base。
 """
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Uuid, func, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -36,6 +37,50 @@ class User(TimestampMixin, Base):
     __table_args__ = (
         Index("ux_users_email", "email", unique=True),
         CheckConstraint("role in ('user','admin')", name="ck_users_role"),
+    )
+
+
+class Conversation(TimestampMixin, Base):
+    __tablename__ = "conversations"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    title: Mapped[str | None] = mapped_column(String(200))  # null = 尚未生成
+    channel: Mapped[str] = mapped_column(String(16), server_default=text("'web'"))
+    model_alias: Mapped[str] = mapped_column(String(64))
+    # 註:ix_conversations_user_updated(user_id, updated_at DESC, id DESC)僅存在於
+    #     migration(op.execute 原文 DDL);ORM class body 無法宣告 desc 索引(v1.2 §4.2 勘誤)。
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=new_id)
+    conversation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE")
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    content_meta: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'::jsonb")
+    )
+    client_message_id: Mapped[UUID | None]
+    provider: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(64))
+    tokens_in: Mapped[int | None]
+    tokens_out: Mapped[int | None]
+    latency_ms: Mapped[int | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    __table_args__ = (
+        CheckConstraint(
+            "role in ('system','user','assistant','tool')", name="ck_messages_role"
+        ),
+        Index("ix_messages_conv_created", "conversation_id", "created_at", "id"),
+        Index(
+            "ux_messages_client_id",
+            "conversation_id",
+            "client_message_id",
+            unique=True,
+            postgresql_where=text("client_message_id is not null"),
+        ),
     )
 
 

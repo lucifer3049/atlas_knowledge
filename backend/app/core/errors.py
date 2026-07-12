@@ -62,6 +62,27 @@ class InvalidRefreshToken(AppError):
     message = "登入憑證已失效,請重新登入"
 
 
+class ValidationError(AppError):
+    # service 層業務驗證失敗(如 model_alias 不存在);沿用凍結的 validation_error 碼,
+    # NEVER 新增錯誤碼(§R R2)。訊息可於建構時覆寫。
+    code = "validation_error"
+    http_status = 422
+    message = "請求參數驗證失敗"
+
+
+class ConversationNotFound(AppError):
+    # 查無資源與無權存取一律 404,NEVER 用 403 洩漏存在性(§5.3-3)。
+    code = "conversation_not_found"
+    http_status = 404
+    message = "找不到對話"
+
+
+class InvalidCursor(AppError):
+    code = "invalid_cursor"
+    http_status = 422
+    message = "分頁游標無效"
+
+
 def _trace_id(request: Request) -> str:
     # middleware 一定會設定 request_id;fallback 僅防禦性。
     request_id: str | None = getattr(request.state, "request_id", None)
