@@ -1,13 +1,18 @@
 """`config/models.yaml` 讀取(schema 權威:phase-6 §7.1;P1 起即用此格式,§R R2)。
 
-T1.2 僅需:預設 alias 解析、alias 是否存在(建立 conversation 時驗證)。
-adapter 組裝(base_url/api_key/params)於 T1.3 再擴充。模組層載入一次並快取。
+- 預設 alias 解析、alias 是否存在(建立 conversation 時驗證,T1.2)。
+- `resolve(alias)`:解析 alias 的實際 model 名與參數(T1.4;orchestrator 以
+  `conversation.model_alias` 查此表組 `ModelParams`)。連線層(base_url/api_key/timeout)
+  於 P1 由 settings 提供(yaml `base_url: ${LLM_BASE_URL}` 即等於 `settings.llm_base_url`);
+  多 provider / per-alias base_url 的 ModelRouter 為 P6。
+模組層載入一次並快取。
 """
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel
 
 # backend/app/core/model_registry.py → parents: [0]=core [1]=app [2]=backend [3]=repo 根
 _MODELS_YAML = Path(__file__).resolve().parents[3] / "config" / "models.yaml"
@@ -29,3 +34,22 @@ def default_alias() -> str:
 def alias_exists(alias: str) -> bool:
     aliases = _config().get("aliases", {})
     return isinstance(aliases, dict) and alias in aliases
+
+
+class ResolvedModel(BaseModel):
+    provider: str
+    model: str
+    temperature: float = 0.7
+    max_tokens: int | None = None
+
+
+def resolve(alias: str) -> ResolvedModel:
+    """alias → 實際 model + 參數。alias 不存在為程式錯誤(建立 conversation 時已驗證)。"""
+    cfg = _config().get("aliases", {})[alias]
+    params = cfg.get("params", {}) or {}
+    return ResolvedModel(
+        provider=cfg["provider"],
+        model=cfg["model"],
+        temperature=params.get("temperature", 0.7),
+        max_tokens=params.get("max_tokens"),
+    )

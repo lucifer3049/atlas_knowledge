@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import keyset_before
@@ -48,3 +48,12 @@ class ConversationRepository:
     async def delete(self, conversation: Conversation) -> None:
         # DB 端 ON DELETE CASCADE 連帶刪除 messages。
         await self._session.delete(conversation)
+
+    async def bump_updated_at(self, conversation_id: UUID) -> None:
+        """明確更新 updated_at(§8-5;插入 assistant 訊息不會動 conversation 列,
+        故側欄排序需主動 bump)。"""
+        await self._session.execute(
+            update(Conversation)
+            .where(Conversation.id == conversation_id)
+            .values(updated_at=func.now())
+        )

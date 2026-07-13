@@ -83,6 +83,13 @@ class InvalidCursor(AppError):
     message = "分頁游標無效"
 
 
+class DuplicateMessage(AppError):
+    # client_message_id 冪等衝突;僅防網路層自動重送(§D2、PHASE_1 v1.2 client_message_id 重試語意)。
+    code = "duplicate_message"
+    http_status = 409
+    message = "訊息已送出"
+
+
 def _trace_id(request: Request) -> str:
     # middleware 一定會設定 request_id;fallback 僅防禦性。
     request_id: str | None = getattr(request.state, "request_id", None)

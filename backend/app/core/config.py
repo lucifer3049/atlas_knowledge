@@ -16,5 +16,13 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 14
     cookie_secure: bool = False  # 正式環境 true(refresh cookie 走 HTTPS)
 
+    # LLM 連線(T1.4;PHASE_1 §2.1)。model 名由 config/models.yaml 提供(§R R2,LLM_MODEL 作廢);
+    # base_url 即 yaml `${LLM_BASE_URL}` 的來源;api_key/timeout 為連線層設定。
+    llm_base_url: str = "http://localhost:11434/v1"
+    llm_api_key: str = "ollama"
+    llm_timeout_s: float = 120
+    chat_system_prompt: str = "你是一個誠實、精簡的中文助理。"
+    chat_history_max_messages: int = 20
+
 
 settings = Settings()

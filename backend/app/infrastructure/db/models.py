@@ -95,3 +95,25 @@ class RefreshToken(Base):
     replaced_by: Mapped[UUID | None]
     user_agent: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ModelUsageLog(Base):
+    # 對 conversation / message 為軟引用(無 FK,§D3);對話刪除後用量統計仍存在。
+    __tablename__ = "model_usage_logs"
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=new_id)
+    user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    conversation_id: Mapped[UUID | None]
+    message_id: Mapped[UUID | None]
+    channel: Mapped[str] = mapped_column(String(16), server_default=text("'web'"))
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(64))
+    tokens_in: Mapped[int | None]
+    tokens_out: Mapped[int | None]
+    latency_ms: Mapped[int | None]
+    status: Mapped[str] = mapped_column(String(8))
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+    __table_args__ = (
+        CheckConstraint("status in ('ok','error')", name="ck_usage_status"),
+        Index("ix_usage_user_created", "user_id", "created_at"),
+    )

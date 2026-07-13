@@ -47,3 +47,8 @@ class MessageOut(BaseModel):
 class MessagePage(BaseModel):
     items: list[MessageOut]
     next_cursor: str | None
+
+
+class ChatSendRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=8000)
+    client_message_id: UUID | None = None
