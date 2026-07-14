@@ -19,6 +19,17 @@ class MessageRepository:
         self._session.add(message)
         await self._session.flush()
 
+    async def first_of_role(self, conversation_id: UUID, role: str) -> Message | None:
+        """該對話中最早的一則指定角色訊息(標題生成取首輪 user/assistant;T1.7)。"""
+        stmt = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id, Message.role == role)
+            .order_by(Message.created_at, Message.id)
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list_recent(self, conversation_id: UUID, *, limit: int) -> list[Message]:
         """取最近 limit 則,回傳為時間正序(asc)供組 prompt 上下文(§8-1)。"""
         stmt = (

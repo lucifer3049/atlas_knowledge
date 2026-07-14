@@ -22,6 +22,8 @@ dependencies = [
     "argon2-cffi>=23.1",
     "pyjwt>=2.10",
     "pyyaml>=6.0",
+    "celery[redis]>=5.4",
+    "redis>=5.2",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +54,11 @@ strict = true
 plugins = ["pydantic.mypy"]
 # 排除:虛擬環境與 Alembic 遷移(env.py 依賴 alembic 執行期注入的全域,不納入嚴格型別檢查)
 exclude = ["^\\.venv", "^migrations"]
+
+# celery 未附型別 stub(無 py.typed);忽略其缺失匯入,不放寬本專案其他嚴格檢查。
+[[tool.mypy.overrides]]
+module = ["celery.*"]
+ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

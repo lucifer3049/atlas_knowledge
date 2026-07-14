@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.deps import build_llm
 from app.api.middleware import RequestContextMiddleware
 from app.api.routers import auth, chat, conversations, health, me
 from app.core.config import settings
 from app.core.db import create_engine
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
+from app.core.wiring import build_llm
 from app.infrastructure.db.session import create_session_factory
 
 configure_logging()

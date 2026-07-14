@@ -19,6 +19,10 @@ class ConversationRepository:
         await self._session.flush()
         return conv
 
+    async def get(self, conversation_id: UUID) -> Conversation | None:
+        # 無 owner 過濾:僅供系統側背景任務(標題生成)使用。
+        return await self._session.get(Conversation, conversation_id)
+
     async def get_owned(self, user_id: UUID, conversation_id: UUID) -> Conversation | None:
         result = await self._session.execute(
             select(Conversation).where(
@@ -56,4 +60,12 @@ class ConversationRepository:
             update(Conversation)
             .where(Conversation.id == conversation_id)
             .values(updated_at=func.now())
+        )
+
+    async def set_title_if_null(self, conversation_id: UUID, title: str) -> None:
+        """僅在 title 仍為 NULL 時寫入(WHERE title IS NULL 防 race;T1.7)。"""
+        await self._session.execute(
+            update(Conversation)
+            .where(Conversation.id == conversation_id, Conversation.title.is_(None))
+            .values(title=title)
         )

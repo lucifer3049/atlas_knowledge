@@ -10,30 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.chat_orchestrator import ChatOrchestrator
 from app.core.config import Settings, settings
 from app.core.errors import InvalidToken
-from app.core.model_registry import default_alias, resolve
 from app.core.security import decode_access_token
 from app.domain.entities.auth_context import AuthContext
 from app.domain.ports.llm import LLMProvider
-from app.infrastructure.llm.openai_compat import OpenAICompatProvider
-from app.infrastructure.tasks.noop_queue import NoopTaskQueue
+from app.domain.ports.task_queue import TaskQueue
+from app.infrastructure.tasks.celery_queue import CeleryTaskQueue
 
 
 def get_settings() -> Settings:
     return settings
-
-
-def build_llm(settings: Settings) -> LLMProvider:
-    """由 default alias 組 LLM adapter(§R R2)。於 lifespan 建一次掛 app.state,
-    連線層(base_url/api_key/timeout)取自 settings;model 名於 orchestrator 依
-    conversation.model_alias 解析。多 provider(anthropic/gemini)為 P6 ModelRouter。"""
-    resolved = resolve(default_alias())
-    if resolved.provider != "openai_compat":
-        raise RuntimeError(f"P1 僅支援 openai_compat provider,取得 {resolved.provider!r}")
-    return OpenAICompatProvider(
-        base_url=settings.llm_base_url,
-        api_key=settings.llm_api_key,
-        timeout_s=settings.llm_timeout_s,
-    )
 
 
 def get_llm(request: Request) -> LLMProvider:
@@ -41,16 +26,21 @@ def get_llm(request: Request) -> LLMProvider:
     return llm
 
 
+def get_task_queue() -> TaskQueue:
+    return CeleryTaskQueue()
+
+
 def get_orchestrator(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     llm: Annotated[LLMProvider, Depends(get_llm)],
+    task_queue: Annotated[TaskQueue, Depends(get_task_queue)],
 ) -> ChatOrchestrator:
     return ChatOrchestrator(
         session_factory=request.app.state.session_factory,
         llm=llm,
         settings=settings,
-        task_queue=NoopTaskQueue(),
+        task_queue=task_queue,
     )
 
 

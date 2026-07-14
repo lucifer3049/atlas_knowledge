@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from app.api.deps import get_llm
+from app.api.deps import get_llm, get_task_queue
 from app.domain.ports.llm import (
     ChatMessage,
     ModelParams,
@@ -44,12 +44,19 @@ class _FakeLLM:
             yield ev
 
 
+class _FakeTaskQueue:
+    def enqueue_generate_title(self, conversation_id: object) -> None:
+        pass
+
+
 def _use_llm(script: list[StreamEvent]) -> None:
     app.dependency_overrides[get_llm] = lambda: _FakeLLM(script)
 
 
 @pytest.fixture(autouse=True)
-def _clear_overrides() -> Iterator[None]:
+def _fake_queue() -> Iterator[None]:
+    # 所有 chat API 測試不碰 broker:標題入列以 fake 取代(§C.5.7)。
+    app.dependency_overrides[get_task_queue] = _FakeTaskQueue
     yield
     app.dependency_overrides.clear()
 
