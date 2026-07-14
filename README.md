@@ -37,6 +37,28 @@ docker compose ps    # postgres / redis 均應為 healthy
 | Redis | `redis://localhost:6379/0` |
 | Ollama(LLM) | `http://localhost:11434/v1`(`LLM_BASE_URL`) |
 
+## 一鍵開發啟動(dev launcher)
+
+跨平台啟動器,一個終端機把整套本機環境拉起來:起 postgres + redis → 跑 `alembic upgrade head`
+→ 同時啟動 backend(uvicorn)、celery worker、frontend(vite)並彙整輸出,`Ctrl+C` 一次全關。
+核心邏輯在 [scripts/dev.py](scripts/dev.py)(純標準庫);另附各 OS 外殼 `dev.ps1` / `dev.sh`。
+
+```bash
+# 首次:一次性安裝依賴(建 venv + 後端 pip + 前端 npm install)
+python scripts/dev.py --setup          # Windows: .\dev.ps1 --setup   /  *nix: ./dev.sh --setup
+
+# 之後每次:啟動全部
+python scripts/dev.py                  # Windows: .\dev.ps1           /  *nix: ./dev.sh
+#   選項:--no-web(只跑後端/worker)
+```
+
+前置需自行就緒(腳本只檢查、不代啟):**Docker Desktop 已啟動**、**Ollama 常駐**且已
+`ollama pull`(見 [config/models.yaml](config/models.yaml) 的 `model`,預設 `llama3.1:8b`)。
+啟動後開 http://localhost:5173 。
+
+> 這是**開發便利工具**;正式部署(容器化 backend/worker/frontend + Caddy 反代的單一 compose)
+> 屬 P7/P8,尚未實作。
+
 ## 後端(backend)
 
 前置:已 `docker compose up -d` 啟動 PostgreSQL / Redis。
