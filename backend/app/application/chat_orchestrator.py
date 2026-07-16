@@ -8,10 +8,11 @@
 """
 import asyncio
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from typing import cast
 from uuid import UUID
 
+import structlog
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -36,8 +37,29 @@ from app.infrastructure.db.repositories.conversations import ConversationReposit
 from app.infrastructure.db.repositories.messages import MessageRepository
 from app.infrastructure.db.repositories.usage import UsageRepository
 
+_logger = structlog.get_logger()
+
 # StreamStop.stop_reason → SSE done.finish_reason(§H.3;tool_use 於 P1 不觸發)
 _FINISH_REASON = {"end_turn": "stop", "max_tokens": "length"}
+
+# TXN B 失敗時對使用者呈現的固定訊息(§8/§10.4 2026-07-16 修訂);細節只進 log。
+_PERSIST_FAILED_MESSAGE = "伺服器暫時發生錯誤,回覆未能儲存,請稍後再試"
+
+# 客端斷線時的 partial 落庫需脫離被取消的請求任務才能完成 commit;以模組層集合持有
+# 參照避免被 GC(done 後自動移除)。
+_BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
+
+
+def _spawn_background(coro: Coroutine[object, object, None]) -> None:
+    task = asyncio.ensure_future(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+
+async def drain_background_tasks() -> None:
+    """等待所有背景落庫任務結束(測試用;正式碼不需呼叫)。"""
+    while _BACKGROUND_TASKS:
+        await asyncio.gather(*tuple(_BACKGROUND_TASKS), return_exceptions=True)
 
 
 class _TurnContext:
@@ -105,7 +127,11 @@ class ChatOrchestrator:
                 elif isinstance(ev, UsageInfo):
                     tokens_in, tokens_out = ev.input_tokens, ev.output_tokens
                 elif isinstance(ev, StreamError):
-                    await self._persist_error(ctx, conversation_id, turn, buffer, ev.code)
+                    # partial 落庫失敗只 log;原 provider 錯誤仍為唯一終端事件(§8 修訂)
+                    try:
+                        await self._persist_error(ctx, conversation_id, turn, buffer, ev.code)
+                    except Exception:
+                        self._log_persist_failed("stream_error", conversation_id, turn)
                     yield _event(
                         "error", code=ev.code, message=ev.message, trace_id=ctx.trace_id
                     )
@@ -113,15 +139,38 @@ class ChatOrchestrator:
                 elif isinstance(ev, StreamStop):
                     stop_reason = ev.stop_reason
                     break
-        except (asyncio.CancelledError, GeneratorExit):
-            # 客端斷線 / 生成器關閉:持久化 partial(語意 aborted)後 re-raise(§8)
-            await self._persist_cancelled(ctx, conversation_id, turn, buffer)
+        except GeneratorExit:
+            # 生成器關閉(aclose):呼叫端會等待 cleanup,直接 await 即可完成 commit。
+            # 落庫失敗只 log,NEVER 洩漏出 aclose(§8 修訂)。
+            try:
+                await self._persist_cancelled(ctx, conversation_id, turn, buffer)
+            except Exception:
+                self._log_persist_failed("cancelled", conversation_id, turn)
+            raise
+        except asyncio.CancelledError:
+            # 客端斷線:本任務被取消,若在此 await 會被連鎖取消切斷而漏存;
+            # 故把 partial 落庫脫離為背景任務(不隨請求任務被取消),確保 commit(§8)。
+            _spawn_background(
+                self._persist_cancelled_guarded(ctx, conversation_id, turn, buffer)
+            )
             raise
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
-        await self._persist_success(
-            ctx, conversation_id, turn, buffer, tokens_in, tokens_out, latency_ms
-        )
+        try:
+            await self._persist_success(
+                ctx, conversation_id, turn, buffer, tokens_in, tokens_out, latency_ms
+            )
+        except Exception:
+            # TXN B 失敗 NEVER 讓串流無終端事件斷線:發 error(internal_error) 收尾
+            # (§8/§10.4 2026-07-16 修訂;internal_error 為應用層碼,非 ProviderErrorCode)
+            self._log_persist_failed("success", conversation_id, turn)
+            yield _event(
+                "error",
+                code="internal_error",
+                message=_PERSIST_FAILED_MESSAGE,
+                trace_id=ctx.trace_id,
+            )
+            return
         yield _event(
             "done",
             message_id=str(turn.assistant_message_id),
@@ -244,6 +293,30 @@ class ChatOrchestrator:
                 )
             )
             await session.commit()
+
+    async def _persist_cancelled_guarded(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        turn: _TurnContext,
+        buffer: list[str],
+    ) -> None:
+        # 背景任務無人 await 例外:失敗必須在此 log,否則靜默消失(§8 修訂)。
+        try:
+            await self._persist_cancelled(ctx, conversation_id, turn, buffer)
+        except Exception:
+            self._log_persist_failed("cancelled", conversation_id, turn)
+
+    def _log_persist_failed(
+        self, phase: str, conversation_id: UUID, turn: _TurnContext
+    ) -> None:
+        _logger.error(
+            "chat_persist_failed",
+            phase=phase,
+            conversation_id=str(conversation_id),
+            assistant_message_id=str(turn.assistant_message_id),
+            exc_info=True,
+        )
 
     async def _persist_cancelled(
         self,

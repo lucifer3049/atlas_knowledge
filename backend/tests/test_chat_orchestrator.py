@@ -3,14 +3,16 @@
 orchestrator 以 session_factory 自管短交易(§D5),故測試連測試 DB;LLM 與 TaskQueue
 一律 fake,NEVER 打真實 API。
 """
+import asyncio
 from collections.abc import AsyncIterator
+from typing import cast
 from uuid import UUID
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.application.chat_orchestrator import ChatOrchestrator
+from app.application.chat_orchestrator import ChatOrchestrator, drain_background_tasks
 from app.core.config import settings
 from app.core.errors import DuplicateMessage
 from app.domain.entities.auth_context import AuthContext
@@ -214,6 +216,143 @@ async def test_client_disconnect_persists_partial(
     assert saved[0].content_meta == {"partial": True}
     usage = await _usage(session_factory, conv_id)
     assert usage[0].status == "ok"
+
+
+class _BlockingLLM:
+    """吐一個 delta 後阻塞,模擬「串流進行中」被取消(真實客端斷線路徑)。"""
+
+    name = "fake"
+
+    async def chat(
+        self,
+        messages: list[ChatMessage],
+        *,
+        tools: object,
+        tool_choice: object,
+        params: ModelParams,
+        stream: bool,
+    ) -> AsyncIterator[StreamEvent]:
+        yield TextDelta(text="片")
+        await asyncio.Event().wait()  # 阻塞直到被取消
+
+
+async def test_task_cancellation_persists_partial(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    # 真實 uvicorn 斷線 = 請求任務被 cancel(非 aclose);partial 需經背景任務落庫
+    ctx, conv_id = await _seed(session_factory)
+    orch = ChatOrchestrator(
+        session_factory=session_factory,
+        llm=_BlockingLLM(),
+        settings=settings,
+        task_queue=FakeTaskQueue(),
+    )
+    agen = orch.stream_reply(ctx, conv_id, "hi", None)
+    seen: list[str] = []
+
+    async def consume() -> None:
+        async for ev in agen:
+            seen.append(str(ev["event"]))
+
+    task = asyncio.create_task(consume())
+    for _ in range(200):  # 等到串流進行中(收到第一個 delta)
+        if "delta" in seen:
+            break
+        await asyncio.sleep(0.01)
+    assert "delta" in seen
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await drain_background_tasks()  # 等背景落庫完成
+
+    saved = await _messages(session_factory, conv_id, "assistant")
+    assert len(saved) == 1 and saved[0].content == "片"
+    assert saved[0].content_meta == {"partial": True}
+
+
+# --- TXN B 持久化失敗 → 終端事件契約不破(§8/§10.4 2026-07-16 修訂) ----------
+
+class _FlakyFactory:
+    """TXN A 之後的交易一律失敗,模擬串流期間 DB 瞬斷。"""
+
+    def __init__(self, real: async_sessionmaker[AsyncSession], fail_after: int = 1) -> None:
+        self._real = real
+        self._fail_after = fail_after
+        self.calls = 0
+
+    def __call__(self) -> AsyncSession:
+        self.calls += 1
+        if self.calls > self._fail_after:
+            raise RuntimeError("db down")
+        return self._real()
+
+
+def _flaky_orch(
+    session_factory: async_sessionmaker[AsyncSession],
+    llm: FakeLLMProvider,
+    tasks: FakeTaskQueue,
+) -> ChatOrchestrator:
+    flaky = cast(async_sessionmaker[AsyncSession], _FlakyFactory(session_factory))
+    return ChatOrchestrator(
+        session_factory=flaky, llm=llm, settings=settings, task_queue=tasks
+    )
+
+
+async def test_persist_failure_after_stream_yields_internal_error(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    ctx, conv_id = await _seed(session_factory)
+    llm = FakeLLMProvider([TextDelta(text="你"), StreamStop(stop_reason="end_turn")])
+    tasks = FakeTaskQueue()
+    events = await _events(
+        _flaky_orch(session_factory, llm, tasks).stream_reply(ctx, conv_id, "hi", None)
+    )
+
+    # TXN B 失敗 NEVER 讓串流無終端事件斷線:發 error(internal_error) 收尾
+    assert [e["event"] for e in events] == ["message_start", "delta", "error"]
+    err = events[-1]["data"]
+    assert isinstance(err, dict)
+    assert err["code"] == "internal_error" and err["trace_id"] == "trace-1"
+    assert tasks.enqueued == []  # 落庫失敗 → 不觸發標題任務
+
+
+async def test_stream_error_with_persist_failure_still_yields_provider_error(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    ctx, conv_id = await _seed(session_factory)
+    llm = FakeLLMProvider(
+        [TextDelta(text="部分"), StreamError(code="transient", message="上游暫時無法回應")]
+    )
+    events = await _events(
+        _flaky_orch(session_factory, llm, FakeTaskQueue()).stream_reply(ctx, conv_id, "hi", None)
+    )
+
+    # partial 落庫失敗只進 log;原 provider 錯誤事件仍為唯一終端事件
+    assert [e["event"] for e in events] == ["message_start", "delta", "error"]
+    err = events[-1]["data"]
+    assert isinstance(err, dict)
+    assert err["code"] == "transient"
+
+
+async def test_disconnect_with_persist_failure_closes_cleanly(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    ctx, conv_id = await _seed(session_factory)
+    llm = FakeLLMProvider(
+        [TextDelta(text="片"), TextDelta(text="段"), StreamStop(stop_reason="end_turn")]
+    )
+    agen = _flaky_orch(session_factory, llm, FakeTaskQueue()).stream_reply(
+        ctx, conv_id, "hi", None
+    )
+
+    async for ev in agen:
+        if ev["event"] == "delta":
+            await agen.aclose()  # partial 落庫失敗 NEVER 洩漏出 aclose
+            break
+
+    saved = await _messages(session_factory, conv_id, "assistant")
+    assert saved == []  # DB 不可用 → partial 存不進去,但關閉流程不拋錯
 
 
 # --- client_message_id 冪等 --------------------------------------------------
