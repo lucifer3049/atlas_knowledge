@@ -7,6 +7,7 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from app.domain.ports.llm import (
     ChatMessage,
@@ -17,7 +18,7 @@ from app.domain.ports.llm import (
     TextDelta,
 )
 from app.infrastructure.db.models import Conversation, Message, User
-from app.workers.tasks.titles import _generate_title
+from app.workers.tasks.titles import _generate_title, generate_title
 
 pytestmark = pytest.mark.anyio
 
@@ -105,6 +106,20 @@ async def test_no_assistant_message_skips(
     llm = _FakeLLM([TextDelta(text="x"), StreamStop(stop_reason="end_turn")])
     await _generate_title(conv_id, session_factory=session_factory, llm=llm)
     assert await _title(session_factory, conv_id) is None
+
+
+def test_task_is_fire_and_forget_ignores_result() -> None:
+    # 無人讀取回傳值:結果 NEVER 寫入 result backend(review CEL-006)
+    assert generate_title.ignore_result is True
+
+
+def test_failure_log_includes_exception_info() -> None:
+    # best-effort 不拋出,但失敗原因 MUST 進 log(exc_info),否則無從除錯(review CODE-004)
+    with capture_logs() as logs:
+        generate_title("not-a-uuid")  # UUID 解析失敗 → 走兜底 except
+    entry = next(e for e in logs if e["event"] == "title_generation_failed")
+    assert entry["conversation_id"] == "not-a-uuid"
+    assert entry.get("exc_info") is True
 
 
 async def test_title_cleaned_and_truncated(

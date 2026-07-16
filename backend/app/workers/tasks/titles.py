@@ -95,10 +95,13 @@ async def _run_title(conversation_id: UUID) -> None:
         await engine.dispose()
 
 
-@celery_app.task(name="generate_title")  # type: ignore[untyped-decorator]  # celery 未附型別
+# ignore_result=True:fire-and-forget,結果 NEVER 佔用 result backend
+@celery_app.task(name="generate_title", ignore_result=True)  # type: ignore[untyped-decorator]  # celery 未附型別
 def generate_title(conversation_id: str) -> None:
     try:
         run_async(_run_title(UUID(conversation_id)))
     except Exception:
-        # 標題生成為 best-effort:任何失敗只 log,NEVER 讓任務進入重試迴圈。
-        _logger.warning("title_generation_failed", conversation_id=conversation_id)
+        # 標題生成為 best-effort:任何失敗只 log(含 exc_info 供除錯),NEVER 進入重試迴圈。
+        _logger.warning(
+            "title_generation_failed", conversation_id=conversation_id, exc_info=True
+        )

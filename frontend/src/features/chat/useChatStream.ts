@@ -87,6 +87,11 @@ export function useChatStream(conversationId: string) {
         status.value = 'error'
       }
     } finally {
+      // 伺服器異常關閉(串流結束但無 done/error 終端事件):NEVER 卡在 streaming
+      if (status.value === 'streaming') {
+        errorMessage.value = '連線中斷,請重新送出'
+        status.value = 'error'
+      }
       streamingText.value = ''
       controller = null
       // 側欄依 updated_at 重排
