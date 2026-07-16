@@ -30,3 +30,10 @@ Thumbs.db
 # Local data
 *.log
 CLAUDE.md
+
+# 本機手動測試暫存(curl cookie jar / body / 登入資料);根目錄錨定,勿誤擋 tests/fixtures/*.txt
+/login.json
+/body.json
+/new.txt
+/old.txt
+/cookies*.txt
