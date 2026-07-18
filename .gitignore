@@ -10,7 +10,8 @@ venv/
 .pytest_cache/
 htmlcov/
 .coverage
-docs/
+# 規劃書 / ADR 刻意不進版控;根目錄錨定,勿誤擋 backend/tests/fixtures/docs/ 樣本檔
+/docs/
 
 # Node
 node_modules/

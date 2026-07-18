@@ -24,9 +24,14 @@ dependencies = [
     "pyyaml>=6.0",
     "celery[redis]>=5.4",
     "redis>=5.2",
-    # Phase 2(T2.1):multipart 上傳、pgvector 向量型別。parser / jieba 等於後續 ticket 引入。
+    # Phase 2(T2.1):multipart 上傳、pgvector 向量型別。
     "python-multipart>=0.0.20",
     "pgvector>=0.4",
+    # Phase 2(T2.2):文件解析(§2.2)。NEVER 引入 LangChain / unstructured 等重型框架。
+    "pymupdf>=1.25",
+    "python-docx>=1.1",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.3",
 ]
 
 [project.optional-dependencies]
@@ -62,6 +67,12 @@ exclude = ["^\\.venv", "^migrations"]
 [[tool.mypy.overrides]]
 module = ["celery.*"]
 ignore_missing_imports = true
+
+# pymupdf / python-docx 的部分 API 缺型別註記(Document、load_page 等)。
+# 僅對這兩個呼叫端關閉 untyped-call 檢查,不放寬本專案其他嚴格項。
+[[tool.mypy.overrides]]
+module = ["app.infrastructure.parsing.pdf", "tests.fixtures.docs.make_fixtures"]
+disallow_untyped_calls = false
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
