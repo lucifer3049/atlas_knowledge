@@ -90,6 +90,37 @@ class DuplicateMessage(AppError):
     message = "訊息已送出"
 
 
+class DocumentNotFound(AppError):
+    # 同 §5.3-3:查無資源與無權存取一律 404。
+    code = "document_not_found"
+    http_status = 404
+    message = "找不到文件"
+
+
+class SourceNotFound(AppError):
+    code = "source_not_found"
+    http_status = 404
+    message = "找不到知識來源"
+
+
+class UnsupportedMediaType(AppError):
+    code = "unsupported_media_type"
+    http_status = 415
+    message = "不支援的檔案型別"
+
+
+class FileTooLarge(AppError):
+    code = "file_too_large"
+    http_status = 413
+    message = "檔案超過大小上限"
+
+
+class DocumentNotRetryable(AppError):
+    code = "document_not_retryable"
+    http_status = 409
+    message = "僅處理失敗的文件可重試"
+
+
 def _trace_id(request: Request) -> str:
     # middleware 一定會設定 request_id;fallback 僅防禦性。
     request_id: str | None = getattr(request.state, "request_id", None)

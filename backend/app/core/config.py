@@ -24,5 +24,10 @@ class Settings(BaseSettings):
     chat_system_prompt: str = "你是一個誠實、精簡的中文助理。"
     chat_history_max_messages: int = 20
 
+    # 文件儲存(T2.1;PHASE_2 §2.1)。storage_root 為 local FS adapter 的根目錄;
+    # DB 只存 storage key,NEVER 存絕對路徑(§4.1,S3 遷移不動資料)。
+    storage_root: str = "/data/storage"
+    max_upload_mb: int = 20
+
 
 settings = Settings()

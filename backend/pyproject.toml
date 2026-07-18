@@ -24,6 +24,9 @@ dependencies = [
     "pyyaml>=6.0",
     "celery[redis]>=5.4",
     "redis>=5.2",
+    # Phase 2(T2.1):multipart 上傳、pgvector 向量型別。parser / jieba 等於後續 ticket 引入。
+    "python-multipart>=0.0.20",
+    "pgvector>=0.4",
 ]
 
 [project.optional-dependencies]

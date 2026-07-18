@@ -58,6 +58,13 @@ class FakeTaskQueue:
     def enqueue_generate_title(self, conversation_id: UUID) -> None:
         self.enqueued.append(conversation_id)
 
+    # TaskQueue port 的 P2 方法(T2.1);orchestrator 不會呼叫,僅為滿足 Protocol。
+    def enqueue_parse_document(self, document_id: UUID) -> None:
+        raise AssertionError("orchestrator NEVER 入列文件解析任務")
+
+    def enqueue_purge_document(self, storage_prefix: str) -> None:
+        raise AssertionError("orchestrator NEVER 入列文件清理任務")
+
 
 async def _seed(
     session_factory: async_sessionmaker[AsyncSession], *, title: str | None = None

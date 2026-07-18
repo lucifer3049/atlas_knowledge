@@ -190,7 +190,9 @@ def run_all(no_web: bool) -> None:
         [py, "-m", "uvicorn", "app.main:app", "--reload", "--port", str(API_PORT)],
         BACKEND,
     )
-    worker_cmd = [py, "-m", "celery", "-A", "app.workers.celery_app:celery_app", "worker", "-l", "info"]
+    # -Q ingest,default:文件匯入走獨立 queue(PHASE_2 §2.3)
+    worker_cmd = [py, "-m", "celery", "-A", "app.workers.celery_app:celery_app", "worker",
+                  "-l", "info", "-Q", "ingest,default"]
     if IS_WINDOWS:
         worker_cmd += ["--pool=solo"]  # Windows 無 fork,prefork 收不到任務
     procs["worker"] = spawn("worker", worker_cmd, BACKEND)

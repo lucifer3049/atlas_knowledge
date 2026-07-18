@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.middleware import RequestContextMiddleware
-from app.api.routers import auth, chat, conversations, health, me
+from app.api.routers import auth, chat, conversations, documents, health, me
 from app.core.config import settings
 from app.core.db import create_engine
 from app.core.errors import register_error_handlers
@@ -38,3 +38,4 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(me.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")

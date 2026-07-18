@@ -13,7 +13,9 @@ from app.core.errors import InvalidToken
 from app.core.security import decode_access_token
 from app.domain.entities.auth_context import AuthContext
 from app.domain.ports.llm import LLMProvider
+from app.domain.ports.storage import ObjectStorage
 from app.domain.ports.task_queue import TaskQueue
+from app.infrastructure.storage.local_fs import LocalFileStorage
 from app.infrastructure.tasks.celery_queue import CeleryTaskQueue
 
 
@@ -28,6 +30,10 @@ def get_llm(request: Request) -> LLMProvider:
 
 def get_task_queue() -> TaskQueue:
     return CeleryTaskQueue()
+
+
+def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> ObjectStorage:
+    return LocalFileStorage(settings.storage_root)
 
 
 def get_orchestrator(
