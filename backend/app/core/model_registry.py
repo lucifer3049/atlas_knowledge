@@ -11,8 +11,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import structlog
 import yaml
 from pydantic import BaseModel
+
+_logger = structlog.get_logger()
 
 # backend/app/core/model_registry.py → parents: [0]=core [1]=app [2]=backend [3]=repo 根
 _MODELS_YAML = Path(__file__).resolve().parents[3] / "config" / "models.yaml"
@@ -44,8 +47,18 @@ class ResolvedModel(BaseModel):
 
 
 def resolve(alias: str) -> ResolvedModel:
-    """alias → 實際 model + 參數。alias 不存在為程式錯誤(建立 conversation 時已驗證)。"""
-    cfg = _config().get("aliases", {})[alias]
+    """alias → 實際 model + 參數。
+
+    alias 不存在(建立 conversation 後才自 yaml 移除)→ fallback 到 default_alias
+    並 log warning,舊對話 NEVER 因組態演進而 500(與 phase-6 §7.2 解析優先序
+    「conversation → default_alias」同語意;完整 ModelRouter 為 P6)。
+    default_alias 本身缺失為組態錯誤 → KeyError fail-fast。
+    """
+    aliases = _config().get("aliases", {})
+    if alias not in aliases:
+        _logger.warning("model_alias_fallback", alias=alias, fallback=default_alias())
+        alias = default_alias()
+    cfg = aliases[alias]
     params = cfg.get("params", {}) or {}
     return ResolvedModel(
         provider=cfg["provider"],

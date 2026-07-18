@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/vue-query'
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 
 import { streamChat } from '@/api/sse'
 import type { MessageOut, SseDelta, SseDone, SseError, SseMessageStart } from '@/api/types'
@@ -106,6 +106,9 @@ export function useChatStream(conversationId: string) {
   function abort(): void {
     controller?.abort()
   }
+
+  // 元件卸載(切換/離開對話)時中止進行中的串流:NEVER 留下孤兒請求繼續耗用 LLM
+  onScopeDispose(abort)
 
   return { status, streamingText, errorMessage, send, abort }
 }
