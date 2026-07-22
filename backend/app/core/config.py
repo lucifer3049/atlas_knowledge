@@ -29,5 +29,9 @@ class Settings(BaseSettings):
     storage_root: str = "/data/storage"
     max_upload_mb: int = 20
 
+    # Chunking(T2.3;PHASE_2 §2.1、§7)。token 估算為自製(§F.5),NEVER tiktoken。
+    chunk_target_tokens: int = 450
+    chunk_overlap_tokens: int = 80
+
 
 settings = Settings()

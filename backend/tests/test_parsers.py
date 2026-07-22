@@ -1,7 +1,9 @@
 """T2.2 parser 測試(純單元;PHASE_2 §12.1、§14 T2.2 測試清單)。
 
-樣本檔位於 tests/fixtures/docs/(由同目錄 make_fixtures.py 產生)。
+樣本檔不進版控:由同目錄的 make_fixtures.py 於 session 開頭重建(CI 亦然),
+避免二進位檔(pdf / docx)進 repo 卻無法以 diff 審查。
 """
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -17,9 +19,16 @@ from app.infrastructure.parsing.blocks import (
 )
 from app.infrastructure.parsing.registry import get_parser, supported_media_types
 from app.infrastructure.parsing.text import decode_text
+from tests.fixtures.docs import make_fixtures
 
 _DOCS = Path(__file__).parent / "fixtures" / "docs"
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _fixture_docs() -> Iterator[None]:
+    make_fixtures.write_all()
+    yield
 
 
 def _parse(name: str, mime: str) -> NormalizedDocument:

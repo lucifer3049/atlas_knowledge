@@ -1,9 +1,10 @@
-"""重新產生 tests/fixtures/docs/ 的樣本檔(T2.2)。
+"""產生 tests/fixtures/docs/ 的解析樣本檔(T2.2)。
 
-二進位樣本(pdf / docx)無法以 diff 審查,故保留產生腳本作為其「原始碼」:
-需要調整樣本內容時改這裡並重跑,NEVER 手工替換不明來源的檔案。
+樣本檔**不進版控**(見 .gitignore):二進位檔無法以 diff 審查,本腳本即其唯一「原始碼」。
+`test_parsers.py` 於 session 開頭呼叫 `write_all()`,本地與 CI 都在跑測試時重建;
+需要調整樣本內容時改這裡,NEVER 手工替換不明來源的檔案。
 
-    python tests/fixtures/docs/make_fixtures.py
+手動重建:`python tests/fixtures/docs/make_fixtures.py`
 """
 from pathlib import Path
 
@@ -103,10 +104,15 @@ def write_pdf_fixtures() -> None:
         )
 
 
-if __name__ == "__main__":
+def write_all() -> None:
+    """產生全部樣本檔;測試 session 開頭呼叫,樣本檔因此不需進版控。"""
     write_text_fixtures()
     write_docx_fixture()
     write_pdf_fixtures()
+
+
+if __name__ == "__main__":
+    write_all()
     for path in sorted(HERE.iterdir()):
         if path.name != Path(__file__).name:
             print(f"{path.name}: {path.stat().st_size} bytes")

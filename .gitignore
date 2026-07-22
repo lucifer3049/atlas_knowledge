@@ -10,8 +10,13 @@ venv/
 .pytest_cache/
 htmlcov/
 .coverage
-# 規劃書 / ADR 刻意不進版控;根目錄錨定,勿誤擋 backend/tests/fixtures/docs/ 樣本檔
+# 規劃書 / ADR 刻意不進版控;根目錄錨定,避免誤擋其他同名目錄
 /docs/
+
+# T2.2 解析樣本檔:由 make_fixtures.py 產生(pytest 每次執行自動重建),不進版控;
+# 只保留產生腳本作為樣本內容的唯一「原始碼」。
+/backend/tests/fixtures/docs/*
+!/backend/tests/fixtures/docs/make_fixtures.py
 
 # Node
 node_modules/
