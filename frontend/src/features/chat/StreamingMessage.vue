@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import type { CitationOut } from '@/api/types'
+
+import CitationsPanel from './CitationsPanel.vue'
 import { renderMarkdown } from './markdown'
 
-defineProps<{ text: string }>()
+// citations 於首個 delta 之前抵達(D6):來源先渲染,不必等回答生成完(§10.3)
+withDefaults(defineProps<{ text: string; citations?: CitationOut[] }>(), { citations: () => [] })
 </script>
 
 <template>
@@ -15,6 +19,7 @@ defineProps<{ text: string }>()
           v-html="renderMarkdown(text)"
         ></div>
         <span v-else class="text-slate-400">思考中…</span>
+        <CitationsPanel :citations="citations" />
       </div>
     </div>
   </div>

@@ -2,14 +2,16 @@
 import { ref } from 'vue'
 
 const props = defineProps<{ streaming: boolean }>()
-const emit = defineEmits<{ send: [content: string]; abort: [] }>()
+const emit = defineEmits<{ send: [content: string, useKnowledge: boolean]; abort: [] }>()
 
 const text = ref('')
+// 預設關閉 = P1 純聊天行為;開啟則檢索全部來源(P2 無來源多選,列 P3 ScopeSelector)
+const useKnowledge = ref(false)
 
 function submit(): void {
   const content = text.value.trim()
   if (content === '' || props.streaming) return
-  emit('send', content)
+  emit('send', content, useKnowledge.value)
   text.value = ''
 }
 
@@ -23,6 +25,13 @@ function onKeydown(e: KeyboardEvent): void {
 
 <template>
   <div class="border-t border-slate-200 bg-white p-3">
+    <div class="mx-auto mb-2 flex max-w-3xl items-center gap-2">
+      <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+        <input v-model="useKnowledge" type="checkbox" class="h-4 w-4 accent-slate-800" />
+        使用知識庫
+      </label>
+      <span v-if="useKnowledge" class="text-xs text-slate-400">回答將附上參考來源</span>
+    </div>
     <div class="mx-auto flex max-w-3xl items-end gap-2">
       <textarea
         v-model="text"

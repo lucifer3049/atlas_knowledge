@@ -161,17 +161,15 @@ async def test_prompt_contains_numbered_context_blocks(
     assert settings.chat_system_prompt in system.content  # 基底 prompt 仍在
 
 
-async def test_empty_result_still_answers_and_sends_empty_citations(
+async def test_empty_result_still_answers_without_citations_event(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     ctx, conv_id, _ = await _seed(session_factory)
     llm = FakeLLMProvider([TextDelta(text="資料不足"), StreamStop(stop_reason="end_turn")])
     events = await _events(_orch(session_factory, llm, chunks=[]), ctx, conv_id, [])
 
-    assert [e["event"] for e in events] == ["message_start", "citations", "delta", "done"]
-    data = events[1]["data"]
-    assert isinstance(data, dict)
-    assert data["items"] == []
+    # 空集合仍完成回答,但無引用 → NEVER 送 citations 事件(§10.3)
+    assert [e["event"] for e in events] == ["message_start", "delta", "done"]
     assert "沒有檢索到相關資料" in llm.seen_messages[0].content
     assert await _citations(session_factory, conv_id) == []
 

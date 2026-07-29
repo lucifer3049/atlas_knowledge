@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MessageOut } from '@/api/types'
 
+import CitationsPanel from './CitationsPanel.vue'
 import { renderMarkdown } from './markdown'
 
 defineProps<{
@@ -35,8 +36,12 @@ defineEmits<{ loadEarlier: [] }>()
         :class="m.role === 'user' ? 'bg-slate-800 text-white' : 'bg-white text-slate-800 shadow-sm'"
       >
         <p v-if="m.role === 'user'" class="whitespace-pre-wrap break-words">{{ m.content }}</p>
-        <!-- assistant 內容已 sanitize(renderMarkdown)後才 v-html(§C.6.1) -->
-        <div v-else class="prose prose-sm max-w-none break-words" v-html="renderMarkdown(m.content)"></div>
+        <template v-else>
+          <!-- assistant 內容已 sanitize(renderMarkdown)後才 v-html(§C.6.1) -->
+          <div class="prose prose-sm max-w-none break-words" v-html="renderMarkdown(m.content)"></div>
+          <!-- 歷史訊息的 citations 由 messages API 帶回(§13) -->
+          <CitationsPanel :citations="m.citations" />
+        </template>
       </div>
     </div>
   </div>

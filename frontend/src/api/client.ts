@@ -68,15 +68,8 @@ function authHeaders(hasBody: boolean): Record<string, string> {
   return headers
 }
 
-export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const send = (): Promise<Response> =>
-    fetch(`/api${path}`, {
-      method: opts.method ?? 'GET',
-      headers: authHeaders(opts.body !== undefined),
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      signal: opts.signal,
-    })
-
+// 401 → single-flight refresh → 重試一次;JSON 與 multipart 共用同一條路徑。
+async function sendWithRefresh(path: string, send: () => Promise<Response>): Promise<Response> {
   let res = await send()
   // auth 端點自身的 401 不再遞迴 refresh(避免無限迴圈)。
   if (res.status === 401 && !path.startsWith('/auth/')) {
@@ -89,7 +82,32 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
       throw await toApiError(res)
     }
   }
+  return res
+}
+
+async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) throw await toApiError(res)
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
+}
+
+export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const res = await sendWithRefresh(path, () =>
+    fetch(`/api${path}`, {
+      method: opts.method ?? 'GET',
+      headers: authHeaders(opts.body !== undefined),
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
+    }),
+  )
+  return parse<T>(res)
+}
+
+// multipart 上傳(文件上傳,P2 §11.2):Content-Type 交給瀏覽器自動帶 boundary,
+// NEVER 自行設定,否則 boundary 遺失、後端解析失敗。
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const res = await sendWithRefresh(path, () =>
+    fetch(`/api${path}`, { method: 'POST', headers: authHeaders(false), body: form }),
+  )
+  return parse<T>(res)
 }

@@ -6,8 +6,9 @@
 
 事件順序(§H.3、PHASE_2 §10.3):message_start → citations(0..1)→ delta* → (done | error)。
 RAG(T2.6):`source_ids is None` = 純聊天(P1 行為位元級不變,NEVER 檢索、NEVER 送
-citations);`[]` = 使用知識庫但不限來源;非空 list = 限定來源。檢索失敗仍先 message_start
-再 error(v1.2 §10 補遺)。
+citations);`[]` = 使用知識庫但不限來源;非空 list = 限定來源。**檢索結果為空時亦不送
+citations 事件**(該事件只在有引用時出現)。檢索失敗仍先 message_start 再 error
+(v1.2 §10 補遺)。
 """
 import asyncio
 import time
@@ -178,7 +179,9 @@ class ChatOrchestrator:
                     trace_id=ctx.trace_id,
                 )
                 return
-            yield _event("citations", items=_citation_items(turn.citations))
+            # 空結果 NEVER 送 citations 事件(§10.3「0..1 次」);prompt 仍註明無資料。
+            if turn.citations:
+                yield _event("citations", items=_citation_items(turn.citations))
 
         # 3. 串流(NEVER 持有 DB 連線)
         buffer: list[str] = []

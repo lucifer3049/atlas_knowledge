@@ -10,14 +10,16 @@ import { useMessages } from './useMessages'
 const props = defineProps<{ conversationId: string }>()
 
 const { query, loadEarlier, loadingEarlier } = useMessages(props.conversationId)
-const { status, streamingText, errorMessage, send, abort } = useChatStream(props.conversationId)
+const { status, streamingText, streamingCitations, errorMessage, send, abort } = useChatStream(
+  props.conversationId,
+)
 
 const messages = computed(() => query.data.value?.items ?? [])
 const canLoadEarlier = computed(() => (query.data.value?.earlierCursor ?? null) !== null)
 const streaming = computed(() => status.value === 'streaming')
 
-function onSend(content: string): void {
-  void send(content)
+function onSend(content: string, useKnowledge: boolean): void {
+  void send(content, useKnowledge)
 }
 </script>
 
@@ -32,7 +34,11 @@ function onSend(content: string): void {
         :loading-earlier="loadingEarlier"
         @load-earlier="loadEarlier"
       />
-      <StreamingMessage v-if="streaming || streamingText !== ''" :text="streamingText" />
+      <StreamingMessage
+        v-if="streaming || streamingText !== ''"
+        :text="streamingText"
+        :citations="streamingCitations"
+      />
     </div>
 
     <p

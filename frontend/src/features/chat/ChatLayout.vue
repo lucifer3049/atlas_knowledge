@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { apiFetch } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
@@ -44,7 +44,14 @@ async function onLogout(): Promise<void> {
     <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
       <div class="flex items-center justify-between p-3">
         <span class="font-semibold">AI 知識問答</span>
-        <button class="text-sm text-slate-500 hover:text-slate-800" @click="onLogout">登出</button>
+        <div class="flex items-center gap-3">
+          <RouterLink to="/documents" class="text-sm text-slate-500 hover:text-slate-800">
+            文件
+          </RouterLink>
+          <button class="text-sm text-slate-500 hover:text-slate-800" @click="onLogout">
+            登出
+          </button>
+        </div>
       </div>
       <div class="px-3 pb-2">
         <button
