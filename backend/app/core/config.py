@@ -45,5 +45,13 @@ class Settings(BaseSettings):
     # query embedding 快取 TTL(§9.1 D9,1h);chunk embedding 快取已於 v1.2 砍除。
     embedding_query_cache_ttl_s: int = 3600
 
+    # Hybrid 檢索(T2.6;PHASE_2 §2.1、§9)。top_k = vector / fts 各取前 K;
+    # top_n = RRF 後進 prompt 的 chunk 數;hnsw_ef_search 為檢索交易的 SET LOCAL 值。
+    retrieval_top_k: int = 30
+    retrieval_top_n: int = 8
+    rrf_k: int = 60
+    hnsw_ef_search: int = 60
+    rag_context_char_budget: int = 9000
+
 
 settings = Settings()

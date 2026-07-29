@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.chat_orchestrator import ChatOrchestrator, drain_background_tasks
+from app.application.retrieval_service import RetrievalService
 from app.core.config import settings
 from app.core.errors import DuplicateMessage
 from app.domain.entities.auth_context import AuthContext
@@ -87,13 +88,24 @@ async def _seed(
         return ctx, conv.id
 
 
+class _NeverRetrieval:
+    """純聊天 NEVER 檢索(P1 行為回歸;§12.2 chat 列)。"""
+
+    async def retrieve(self, *args: object, **kwargs: object) -> list[object]:
+        raise AssertionError("knowledge_scope=None 時 NEVER 檢索")
+
+
 def _orch(
     session_factory: async_sessionmaker[AsyncSession],
     llm: FakeLLMProvider,
     tasks: FakeTaskQueue,
 ) -> ChatOrchestrator:
     return ChatOrchestrator(
-        session_factory=session_factory, llm=llm, settings=settings, task_queue=tasks
+        session_factory=session_factory,
+        llm=llm,
+        settings=settings,
+        task_queue=tasks,
+        retrieval=cast(RetrievalService, _NeverRetrieval()),
     )
 
 
@@ -259,6 +271,7 @@ async def test_task_cancellation_persists_partial(
         llm=_BlockingLLM(),
         settings=settings,
         task_queue=FakeTaskQueue(),
+        retrieval=cast(RetrievalService, _NeverRetrieval()),
     )
     agen = orch.stream_reply(ctx, conv_id, "hi", None)
     seen: list[str] = []
@@ -308,7 +321,11 @@ def _flaky_orch(
 ) -> ChatOrchestrator:
     flaky = cast(async_sessionmaker[AsyncSession], _FlakyFactory(session_factory))
     return ChatOrchestrator(
-        session_factory=flaky, llm=llm, settings=settings, task_queue=tasks
+        session_factory=flaky,
+        llm=llm,
+        settings=settings,
+        task_queue=tasks,
+        retrieval=cast(RetrievalService, _NeverRetrieval()),
     )
 
 
@@ -401,7 +418,11 @@ async def test_history_truncated_to_limit(
     limited = settings.model_copy(update={"chat_history_max_messages": 5})
     llm = FakeLLMProvider([TextDelta(text="ok"), StreamStop(stop_reason="end_turn")])
     orch = ChatOrchestrator(
-        session_factory=session_factory, llm=llm, settings=limited, task_queue=FakeTaskQueue()
+        session_factory=session_factory,
+        llm=llm,
+        settings=limited,
+        task_queue=FakeTaskQueue(),
+        retrieval=cast(RetrievalService, _NeverRetrieval()),
     )
     await _events(orch.stream_reply(ctx, conv_id, "newest", None))
 

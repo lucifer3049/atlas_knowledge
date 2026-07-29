@@ -37,8 +37,12 @@ async def send_message(
     auth: Annotated[AuthContext, Depends(get_auth)],
     orchestrator: Annotated[ChatOrchestrator, Depends(get_orchestrator)],
 ) -> StreamingResponse:
+    # knowledge_scope → orchestrator 的 source_ids:None = 純聊天;`[]` = 使用知識庫但
+    # 不限來源(R5:None 與空陣列同義 = 不限)。P2 僅 source_ids 有過濾行為。
+    scope = body.knowledge_scope
+    source_ids = None if scope is None else list(scope.source_ids or [])
     agen = orchestrator.stream_reply(
-        auth, conversation_id, body.content, body.client_message_id
+        auth, conversation_id, body.content, body.client_message_id, source_ids
     )
     # 先取第一個事件(message_start)以觸發 TXN A;串流前錯誤(ConversationNotFound /
     # DuplicateMessage)在此 raise → 走一般 JSON 錯誤 handler,不進 SSE(§9)。

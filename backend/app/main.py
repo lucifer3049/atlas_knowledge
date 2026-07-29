@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.core.db import create_engine
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
-from app.core.wiring import build_llm
+from app.core.redis import create_redis_client
+from app.core.wiring import build_embedding, build_llm, build_retrieval
 from app.infrastructure.db.session import create_session_factory
 
 configure_logging()
@@ -21,12 +22,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     app.state.llm = build_llm(settings)  # 單一 adapter 掛 app.state(§R R2:模組層載一次)
+    app.state.embedding = build_embedding(settings)
+    app.state.redis = create_redis_client(settings)
+    app.state.retrieval = build_retrieval(
+        settings,
+        session_factory=app.state.session_factory,
+        embedding=app.state.embedding,
+        redis=app.state.redis,
+    )
     try:
         yield
     finally:
-        aclose = getattr(app.state.llm, "aclose", None)
-        if aclose is not None:
-            await aclose()
+        for adapter in (app.state.llm, app.state.embedding):
+            aclose = getattr(adapter, "aclose", None)
+            if aclose is not None:
+                await aclose()
+        await app.state.redis.aclose()
         await engine.dispose()
 
 

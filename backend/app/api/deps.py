@@ -8,6 +8,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.chat_orchestrator import ChatOrchestrator
+from app.application.retrieval_service import RetrievalService
 from app.core.config import Settings, settings
 from app.core.errors import InvalidToken
 from app.core.security import decode_access_token
@@ -36,17 +37,25 @@ def get_storage(settings: Annotated[Settings, Depends(get_settings)]) -> ObjectS
     return LocalFileStorage(settings.storage_root)
 
 
+def get_retrieval(request: Request) -> RetrievalService:
+    # 單一實例掛 app.state(lifespan 組裝;embedding adapter 與 redis client 共用連線池)
+    retrieval: RetrievalService = request.app.state.retrieval
+    return retrieval
+
+
 def get_orchestrator(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     llm: Annotated[LLMProvider, Depends(get_llm)],
     task_queue: Annotated[TaskQueue, Depends(get_task_queue)],
+    retrieval: Annotated[RetrievalService, Depends(get_retrieval)],
 ) -> ChatOrchestrator:
     return ChatOrchestrator(
         session_factory=request.app.state.session_factory,
         llm=llm,
         settings=settings,
         task_queue=task_queue,
+        retrieval=retrieval,
     )
 
 

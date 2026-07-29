@@ -18,8 +18,10 @@ from app.api.schemas.conversations import (
     MessageOut,
     MessagePage,
 )
+from app.api.schemas.documents import CitationOut
 from app.application.conversation_service import ConversationService
 from app.domain.entities.auth_context import AuthContext
+from app.infrastructure.db.models import Message, MessageCitation
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -85,10 +87,16 @@ async def list_messages(
     limit: LimitDep = 20,
     cursor: str | None = None,
 ) -> MessagePage:
-    items, next_cursor = await ConversationService(session).list_messages(
+    items, citations, next_cursor = await ConversationService(session).list_messages(
         auth, conversation_id, limit=limit, cursor=cursor
     )
     return MessagePage(
-        items=[MessageOut.model_validate(m) for m in items],
+        items=[_message_out(m, citations.get(m.id, [])) for m in items],
         next_cursor=next_cursor,
     )
+
+
+def _message_out(message: Message, citations: list[MessageCitation]) -> MessageOut:
+    out = MessageOut.model_validate(message)
+    out.citations = [CitationOut.model_validate(c) for c in citations]
+    return out

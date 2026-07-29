@@ -12,7 +12,8 @@ from app.core.errors import ConversationNotFound, ValidationError
 from app.core.model_registry import alias_exists, default_alias
 from app.core.pagination import decode_cursor, paginate
 from app.domain.entities.auth_context import AuthContext
-from app.infrastructure.db.models import Conversation, Message
+from app.infrastructure.db.models import Conversation, Message, MessageCitation
+from app.infrastructure.db.repositories.citations import MessageCitationRepository
 from app.infrastructure.db.repositories.conversations import ConversationRepository
 from app.infrastructure.db.repositories.messages import MessageRepository
 
@@ -72,8 +73,16 @@ class ConversationService:
 
     async def list_messages(
         self, ctx: AuthContext, conversation_id: UUID, *, limit: int, cursor: str | None
-    ) -> tuple[list[Message], str | None]:
+    ) -> tuple[list[Message], dict[UUID, list[MessageCitation]], str | None]:
+        """回傳 (訊息, message_id → citations, next_cursor)。
+
+        citations 以整頁一次查詢載入(§11.2:NEVER N+1);純聊天訊息即空 list。
+        """
         await self.get(ctx, conversation_id)  # ownership → 無權/查無一律 404
         keyset = decode_cursor(cursor) if cursor else None
         rows = await self._messages.list_page(conversation_id, limit=limit, cursor=keyset)
-        return paginate(rows, limit, _msg_key)
+        items, next_cursor = paginate(rows, limit, _msg_key)
+        citations = await MessageCitationRepository(self._session).list_for_messages(
+            [m.id for m in items]
+        )
+        return items, citations, next_cursor
