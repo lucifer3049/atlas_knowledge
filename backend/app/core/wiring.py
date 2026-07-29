@@ -4,7 +4,9 @@ adapter 組裝邏輯集中於此,NEVER 在 deps 與 worker 各複製一份。P1 
 """
 from app.core.config import Settings
 from app.core.model_registry import default_alias, resolve
+from app.domain.ports.embedding import EmbeddingProvider
 from app.domain.ports.llm import LLMProvider
+from app.infrastructure.embedding.openai_compat import OpenAICompatEmbedding
 from app.infrastructure.llm.openai_compat import OpenAICompatProvider
 
 
@@ -18,4 +20,18 @@ def build_llm(settings: Settings) -> LLMProvider:
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         timeout_s=settings.llm_timeout_s,
+    )
+
+
+def build_embedding(settings: Settings) -> EmbeddingProvider:
+    """組 embedding adapter(T2.4;§5、D13)。開發與商用 API 共用同一 OpenAI-compatible
+    adapter,差異全在 settings。worker(embed 階段)與 T2.6 檢索共用此組裝。"""
+    return OpenAICompatEmbedding(
+        base_url=settings.embedding_base_url,
+        api_key=settings.embedding_api_key,
+        model=settings.embedding_model,
+        version=settings.embedding_version,
+        dim=settings.embedding_dim,
+        timeout_s=settings.embedding_timeout_s,
+        batch_size=settings.embedding_batch_size,
     )

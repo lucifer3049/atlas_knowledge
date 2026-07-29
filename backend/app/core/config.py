@@ -33,5 +33,17 @@ class Settings(BaseSettings):
     chunk_target_tokens: int = 450
     chunk_overlap_tokens: int = 80
 
+    # Embedding(T2.4;PHASE_2 §2.1)。開發預設 = Ollama bge-m3(OpenAI-compatible embeddings)。
+    # embedding_dim MUST 與 models.py 的 EMBEDDING_DIM 及 migration 常數一致;變更 = 新遷移。
+    embedding_base_url: str = "http://localhost:11434/v1"
+    embedding_api_key: str = "ollama"
+    embedding_model: str = "bge-m3"
+    embedding_dim: int = 1024
+    embedding_version: str = "bge-m3@1024"
+    embedding_batch_size: int = 32
+    embedding_timeout_s: float = 60
+    # query embedding 快取 TTL(§9.1 D9,1h);chunk embedding 快取已於 v1.2 砍除。
+    embedding_query_cache_ttl_s: int = 3600
+
 
 settings = Settings()

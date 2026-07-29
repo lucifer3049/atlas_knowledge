@@ -32,6 +32,8 @@ dependencies = [
     "python-docx>=1.1",
     "beautifulsoup4>=4.12",
     "lxml>=5.3",
+    # Phase 2(T2.4):中文斷詞(FTS tsvector 用);中文斷詞只用 jieba(§0-4)。
+    "jieba>=0.42",
 ]
 
 [project.optional-dependencies]
@@ -63,9 +65,9 @@ plugins = ["pydantic.mypy"]
 # 排除:虛擬環境與 Alembic 遷移(env.py 依賴 alembic 執行期注入的全域,不納入嚴格型別檢查)
 exclude = ["^\\.venv", "^migrations"]
 
-# celery 未附型別 stub(無 py.typed);忽略其缺失匯入,不放寬本專案其他嚴格檢查。
+# celery / jieba 未附型別 stub(無 py.typed);忽略其缺失匯入,不放寬本專案其他嚴格檢查。
 [[tool.mypy.overrides]]
-module = ["celery.*"]
+module = ["celery.*", "jieba.*"]
 ignore_missing_imports = true
 
 # pymupdf / python-docx 的部分 API 缺型別註記(Document、load_page 等)。
