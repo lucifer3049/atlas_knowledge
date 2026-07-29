@@ -7,7 +7,12 @@ from uuid import UUID
 
 import structlog
 
-from app.workers.tasks.ingest import parse_document, purge_document
+from app.workers.tasks.ingest import (
+    chunk_document,
+    embed_chunks,
+    parse_document,
+    purge_document,
+)
 from app.workers.tasks.titles import generate_title
 
 _logger = structlog.get_logger()
@@ -20,9 +25,15 @@ class CeleryTaskQueue:
         except Exception:
             _logger.warning("title_enqueue_failed", conversation_id=str(conversation_id))
 
+    # 以下三段皆非 best-effort:入列失敗 MUST 讓上層知道(文件會卡住),由呼叫端標 failed。
     def enqueue_parse_document(self, document_id: UUID) -> None:
-        # 非 best-effort:入列失敗 MUST 讓上層知道(文件會卡住),由 service 標 failed。
         parse_document.delay(str(document_id))
+
+    def enqueue_chunk_document(self, document_id: UUID) -> None:
+        chunk_document.delay(str(document_id))
+
+    def enqueue_embed_chunks(self, document_id: UUID) -> None:
+        embed_chunks.delay(str(document_id))
 
     def enqueue_purge_document(self, storage_prefix: str) -> None:
         purge_document.delay(storage_prefix)

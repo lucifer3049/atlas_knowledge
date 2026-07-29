@@ -33,7 +33,7 @@ docker compose ps    # postgres / redis 均應為 healthy
 
 | 服務 | 連線 |
 |---|---|
-| PostgreSQL | `postgresql://app:app@localhost:5433/app`(host 5433 → 容器 5432,避開本機原生 PostgreSQL) |
+| PostgreSQL | `postgresql://app:app@localhost:15432/app`(host 15432 → 容器 5432,避開本機原生 PostgreSQL 與 Windows 保留埠) |
 | Redis | `redis://localhost:6379/0` |
 | Ollama(LLM) | `http://localhost:11434/v1`(`LLM_BASE_URL`) |
 

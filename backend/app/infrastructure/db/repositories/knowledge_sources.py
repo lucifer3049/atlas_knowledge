@@ -14,6 +14,10 @@ class KnowledgeSourceRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def get(self, source_id: UUID) -> KnowledgeSource | None:
+        # 無 owner 過濾:僅供背景任務使用(chunking strategy 依 source type 選,§7)。
+        return await self._session.get(KnowledgeSource, source_id)
+
     async def get_owned(self, owner_id: UUID, source_id: UUID) -> KnowledgeSource | None:
         result = await self._session.execute(
             select(KnowledgeSource).where(

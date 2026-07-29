@@ -48,6 +48,19 @@ class _FakeTaskQueue:
     def enqueue_generate_title(self, conversation_id: object) -> None:
         pass
 
+    # TaskQueue port 的 P2 方法;chat 路徑不會呼叫,僅為滿足 Protocol。
+    def enqueue_parse_document(self, document_id: object) -> None:
+        pass
+
+    def enqueue_chunk_document(self, document_id: object) -> None:
+        pass
+
+    def enqueue_embed_chunks(self, document_id: object) -> None:
+        pass
+
+    def enqueue_purge_document(self, storage_prefix: str) -> None:
+        pass
+
 
 def _use_llm(script: list[StreamEvent]) -> None:
     app.dependency_overrides[get_llm] = lambda: _FakeLLM(script)

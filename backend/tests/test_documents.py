@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import get_task_queue
 from app.core.config import settings
-from app.infrastructure.db.models import Document, KnowledgeSource
+from app.infrastructure.db.models import Document, IngestionJob, KnowledgeSource
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -26,6 +26,8 @@ _PDF_BYTES = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\ntrailer\n"
 
 class _FakeTaskQueue:
     parsed: list[str] = []
+    chunked: list[str] = []
+    embedded: list[str] = []
     purged: list[str] = []
 
     def enqueue_generate_title(self, conversation_id: object) -> None:
@@ -33,6 +35,12 @@ class _FakeTaskQueue:
 
     def enqueue_parse_document(self, document_id: UUID) -> None:
         _FakeTaskQueue.parsed.append(str(document_id))
+
+    def enqueue_chunk_document(self, document_id: UUID) -> None:
+        _FakeTaskQueue.chunked.append(str(document_id))
+
+    def enqueue_embed_chunks(self, document_id: UUID) -> None:
+        _FakeTaskQueue.embedded.append(str(document_id))
 
     def enqueue_purge_document(self, storage_prefix: str) -> None:
         _FakeTaskQueue.purged.append(storage_prefix)
@@ -42,6 +50,8 @@ class _FakeTaskQueue:
 def _isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(settings, "storage_root", str(tmp_path))
     _FakeTaskQueue.parsed = []
+    _FakeTaskQueue.chunked = []
+    _FakeTaskQueue.embedded = []
     _FakeTaskQueue.purged = []
     app.dependency_overrides[get_task_queue] = _FakeTaskQueue
     yield
@@ -337,6 +347,53 @@ async def test_retry_resets_failed_document(
     assert body["status"] == "pending"
     assert body["error"] is None
     assert _FakeTaskQueue.parsed == [doc["id"]]
+
+
+async def test_retry_resumes_at_failed_stage_not_from_scratch(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    """stage-level retry(v1.2 §8):embed 失敗 → 直接重跑 embed,NEVER 從 parse 重來。"""
+    headers = await _auth_headers(client, "a@example.com")
+    _, doc = await _upload(client, headers)
+    doc_id = UUID(str(doc["id"]))
+    async with session_factory() as session:
+        row = await session.get(Document, doc_id)
+        assert row is not None
+        row.status = "failed"
+        row.error = "embedding 服務驗證失敗"
+        session.add(IngestionJob(document_id=doc_id, stage="parse", status="succeeded"))
+        session.add(IngestionJob(document_id=doc_id, stage="chunk", status="succeeded"))
+        session.add(IngestionJob(document_id=doc_id, stage="embed", status="failed"))
+        await session.commit()
+
+    _FakeTaskQueue.parsed = []
+    resp = await client.post(f"/api/documents/{doc['id']}/retry", headers=headers)
+
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "embedding"  # 直接回到 embed 階段
+    assert _FakeTaskQueue.embedded == [str(doc_id)]
+    assert _FakeTaskQueue.parsed == []  # NEVER 重新解析
+    assert _FakeTaskQueue.chunked == []
+
+
+async def test_retry_without_job_records_restarts_from_parse(
+    client: AsyncClient, session_factory: async_sessionmaker[AsyncSession]
+) -> None:
+    # 無 ingestion_jobs 紀錄(例如入列本身失敗)→ 從 parse 重跑
+    headers = await _auth_headers(client, "a@example.com")
+    _, doc = await _upload(client, headers)
+    async with session_factory() as session:
+        row = await session.get(Document, UUID(str(doc["id"])))
+        assert row is not None
+        row.status = "failed"
+        await session.commit()
+
+    _FakeTaskQueue.parsed = []
+    resp = await client.post(f"/api/documents/{doc['id']}/retry", headers=headers)
+
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "pending"
+    assert _FakeTaskQueue.parsed == [str(doc["id"])]
 
 
 async def test_retry_other_users_document_404(client: AsyncClient) -> None:

@@ -1,8 +1,11 @@
 """DocumentRepository:documents 表唯一 SQL 出口;ownership 過濾在此(§C.2、§5.3-5)。"""
+from collections.abc import Sequence
 from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import keyset_before
@@ -82,3 +85,33 @@ class DocumentRepository:
         # DB 端 ON DELETE CASCADE 連帶刪除 document_chunks / ingestion_jobs;
         # storage 清理走背景 purge_document(D12)。
         await self._session.delete(document)
+
+    # --- pipeline(T2.5;無 owner 過濾:僅供背景任務使用)--------------------
+
+    async def get(self, document_id: UUID) -> Document | None:
+        return await self._session.get(Document, document_id)
+
+    async def claim(
+        self, document_id: UUID, *, allowed_from: Sequence[str], to: str
+    ) -> bool:
+        """條件更新推進狀態機(§8.1)。回傳 False = 0 rows(已被處理),任務直接 return。"""
+        result = await self._session.execute(
+            update(Document)
+            .where(Document.id == document_id, Document.status.in_(allowed_from))
+            .values(status=to, error=None, updated_at=func.now())
+        )
+        return cast("CursorResult[Any]", result).rowcount > 0
+
+    async def set_status(self, document_id: UUID, status: str) -> None:
+        await self._session.execute(
+            update(Document)
+            .where(Document.id == document_id)
+            .values(status=status, updated_at=func.now())
+        )
+
+    async def set_failed(self, document_id: UUID, error: str) -> None:
+        await self._session.execute(
+            update(Document)
+            .where(Document.id == document_id)
+            .values(status="failed", error=error, updated_at=func.now())
+        )

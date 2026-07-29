@@ -37,7 +37,7 @@ FRONTEND = ROOT / "frontend"
 IS_WINDOWS = os.name == "nt"
 
 # 與 backend/.env / config/models.yaml 對齊的本機預設。
-PG_PORT = 5433
+PG_PORT = 15432
 REDIS_PORT = 6379
 API_PORT = 8000
 WEB_PORT = 5173

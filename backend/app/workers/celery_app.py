@@ -17,6 +17,8 @@ celery_app.conf.update(
     # 文件匯入為重活,獨立 queue(§2.3:worker -Q ingest,default)。
     task_routes={
         "parse_document": {"queue": "ingest"},
+        "chunk_document": {"queue": "ingest"},
+        "embed_chunks": {"queue": "ingest"},
         "purge_document": {"queue": "ingest"},
     },
     task_serializer="json",

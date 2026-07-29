@@ -7,8 +7,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     ports:
-      # host 5433 → 容器 5432(避開本機原生 PostgreSQL 服務佔用的 5432)
-      - "5433:5432"
+      # host 15432 → 容器 5432。避開本機原生 PostgreSQL(5432);15432 亦避開 Windows
+      # WinNAT 動態保留埠範圍(5433-5532 等,`netsh int ipv4 show excludedportrange protocol=tcp`)
+      - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

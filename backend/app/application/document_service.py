@@ -26,9 +26,19 @@ from app.domain.ports.storage import ObjectStorage
 from app.domain.ports.task_queue import TaskQueue
 from app.infrastructure.db.models import Document
 from app.infrastructure.db.repositories.documents import DocumentRepository
+from app.infrastructure.db.repositories.ingestion_jobs import IngestionJobRepository
 from app.infrastructure.db.repositories.knowledge_sources import KnowledgeSourceRepository
 
 _logger = structlog.get_logger()
+
+# stage-level retry(v1.2 §8):自失敗的 stage 續跑,NEVER 從頭重跑
+# (embed 失敗直接重嵌,不刪除已完成 chunks)。值 = 該 stage 的入口狀態,
+# 與 IngestionService 各 stage 的 claim 來源狀態一致。
+_STAGE_ENTRY_STATUS: dict[str, str] = {
+    "parse": "pending",
+    "chunk": "chunking",
+    "embed": "embedding",
+}
 
 # canonical mime 由副檔名白名單推導;client 送的 content-type 僅 sanity check
 # (v1.2 parser 補遺)。`documents.mime` 一律存 canonical 值。
@@ -177,23 +187,40 @@ class DocumentService:
         """既有為 failed 則重置重跑(D8);其餘狀態不動,NEVER 重跑 pipeline。"""
         if doc.status != "failed":
             return
-        doc.status = "pending"
+        await self._restart_from_failed_stage(doc)
+
+    async def _restart_from_failed_stage(self, doc: Document) -> None:
+        """自失敗的 stage 重新入列(v1.2 §8 stage-level retry)。
+
+        無失敗紀錄(例如入列本身失敗)→ 從 parse 重跑。
+        """
+        stage = await IngestionJobRepository(self._session).first_failed_stage(doc.id) or "parse"
+        doc.status = _STAGE_ENTRY_STATUS[stage]
         doc.error = None
         await self._session.commit()
         await self._session.refresh(doc)
-        await self._enqueue_parse(doc)
+        await self._enqueue_stage(doc, stage)
 
-    async def _enqueue_parse(self, doc: Document) -> None:
+    async def _enqueue_stage(self, doc: Document, stage: str) -> None:
+        enqueue = {
+            "parse": self._task_queue.enqueue_parse_document,
+            "chunk": self._task_queue.enqueue_chunk_document,
+            "embed": self._task_queue.enqueue_embed_chunks,
+        }[stage]
         try:
-            self._task_queue.enqueue_parse_document(doc.id)
+            enqueue(doc.id)
         except Exception:
             # 入列失敗 = 文件不會被處理;標為 failed 讓使用者可經 retry API 復原,
-            # NEVER 讓文件永久卡在 pending。
-            _logger.warning("parse_enqueue_failed", document_id=str(doc.id), exc_info=True)
+            # NEVER 讓文件永久卡在中間狀態。
+            _logger.warning("ingest_enqueue_failed", document_id=str(doc.id), stage=stage,
+                            exc_info=True)
             doc.status = "failed"
             doc.error = _ENQUEUE_FAILED_ERROR
             await self._session.commit()
             await self._session.refresh(doc)
+
+    async def _enqueue_parse(self, doc: Document) -> None:
+        await self._enqueue_stage(doc, "parse")
 
     # --- 查詢 / 重試 / 刪除 -------------------------------------------------
 
@@ -216,11 +243,7 @@ class DocumentService:
         doc = await self.get(ctx, document_id)
         if doc.status != "failed":
             raise DocumentNotRetryable()
-        doc.status = "pending"
-        doc.error = None
-        await self._session.commit()
-        await self._session.refresh(doc)
-        await self._enqueue_parse(doc)
+        await self._restart_from_failed_stage(doc)
         return doc
 
     async def delete(self, ctx: AuthContext, document_id: UUID) -> None:
