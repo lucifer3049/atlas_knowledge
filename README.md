@@ -93,6 +93,14 @@ pytest
 alembic upgrade head && alembic downgrade -1 && alembic upgrade head
 ```
 
+**RAG 檢索評測**(冒煙;需先把 `backend/tests/golden/corpus/` 的檔案上傳到該帳號並等狀態變 `ready`):
+
+```bash
+cd backend
+python scripts/rag_eval.py --user-email you@example.com          # 輸出每題 top5 命中表 + Hit@5 / MRR
+python scripts/rag_eval.py --user-email you@example.com --top-k 10
+```
+
 > **測試需要 PostgreSQL**:API / repository 層測試會依 `DATABASE_URL` 自動建立獨立測試庫
 > `<db>_test`(例:`app_test`)、跑 `alembic upgrade` 建 schema,每則測試在交易內執行後 rollback。
 > 因此跑 `pytest` 前需先 `docker compose up -d postgres`。`backend/.env` 另需 `JWT_SECRET`

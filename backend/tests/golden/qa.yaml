@@ -1,0 +1,68 @@
+# RAG 檢索 golden set(T2.8;§14)。
+#
+# 用途:CI / 本地冒煙——確認「問題問得到正確文件」。**NEVER 當成檢索品質的最終判準**:
+# rerank 等決策的評測 MUST 於上線前以真實內部文件另建 golden set(v1.2 §17 補遺、§G.2)。
+#
+# 執行前:把 tests/golden/corpus/ 三個檔案上傳到要評測的帳號(狀態需為 ready),
+# 再跑 `python scripts/rag_eval.py --user-email <帳號>`。
+#
+# 欄位:
+#   question          - 送入檢索的問句(= 使用者會怎麼問)
+#   expected_document - 期望出現在 top-K 的文件檔名(= 上傳時的 filename)
+#   expected_keyword  - 可選;命中的 chunk 內容 MUST 含此字串,避免「檔案對但段落錯」被算成命中
+
+- question: 每週最多可以申請幾天遠端工作?
+  expected_document: employee_handbook.md
+  expected_keyword: 遠端工作
+
+- question: 核心工作時間是幾點到幾點?
+  expected_document: employee_handbook.md
+  expected_keyword: 核心工作時間
+
+- question: 新人的試用期多長,期間要做什麼?
+  expected_document: employee_handbook.md
+  expected_keyword: 試用期
+
+- question: 加班沒有事先申請可以事後補嗎?
+  expected_document: employee_handbook.md
+  expected_keyword: 加班
+
+- question: 特別休假滿一年有幾天?
+  expected_document: employee_handbook.md
+  expected_keyword: 特別休假
+
+- question: 費用要在多久之內完成報銷?
+  expected_document: expense_policy.md
+  expected_keyword: 三十日
+
+- question: 報銷遺失發票怎麼辦?
+  expected_document: expense_policy.md
+  expected_keyword: 遺失
+
+- question: 國內住宿一晚的上限是多少?
+  expected_document: expense_policy.md
+  expected_keyword: 住宿
+
+- question: 自行開車的油資怎麼補貼?
+  expected_document: expense_policy.md
+  expected_keyword: 每公里
+
+- question: 報銷金額超過十萬需要誰核准?
+  expected_document: expense_policy.md
+  expected_keyword: 財務長
+
+- question: 密碼長度與更換頻率的規定是什麼?
+  expected_document: security_policy.md
+  expected_keyword: 密碼
+
+- question: 機密資料可以存在個人筆電嗎?
+  expected_document: security_policy.md
+  expected_keyword: 機密
+
+- question: 對外分享檔案的連結預設到期日多久?
+  expected_document: security_policy.md
+  expected_keyword: 到期日
+
+- question: 發現資安事件要多久內通報?
+  expected_document: security_policy.md
+  expected_keyword: 通報

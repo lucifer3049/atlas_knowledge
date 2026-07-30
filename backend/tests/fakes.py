@@ -12,6 +12,7 @@ from uuid import UUID
 
 from app.application.retrieval_service import RetrievalService
 from app.domain.entities.chunk import RetrievedChunk
+from app.domain.ports.chunk_index import ChunkIndex
 from app.domain.ports.embedding import EmbeddingError
 from app.domain.ports.llm import ProviderErrorCode
 from app.domain.ports.reranker import NoopReranker
@@ -98,11 +99,15 @@ class FakeChunkIndex:
 
 
 def fake_retrieval(
-    chunk_index: FakeChunkIndex | None = None,
+    chunk_index: ChunkIndex | None = None,
     *,
     embedding: FakeEmbeddingProvider | FailingEmbeddingProvider | None = None,
 ) -> RetrievalService:
-    """組真實 RetrievalService + fake adapters(檢索流程本身一併受測)。"""
+    """組真實 RetrievalService + fake adapters(檢索流程本身一併受測)。
+
+    `chunk_index` 亦可傳真實的 `PgVectorChunkIndex`(評測腳本測試即如此:只把
+    embedding 換成 fake,檢索 SQL 走真件)。
+    """
     cache = QueryEmbeddingCache(
         cast(Any, FakeRedis()), version="fake@test", ttl_s=60
     )
